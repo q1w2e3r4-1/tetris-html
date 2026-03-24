@@ -222,9 +222,10 @@
         let tSpinPerformed = false;
         let tSpinValid = false;  // 确认是有效的 T-Spin
         
-        // Back-to-back 和 Combo
+ // Back-to-back 和 Combo
         let backToBack = false;
         let combo = 0;
+        let lastWasHighScore = false;  // 上一次是否是高分消除（Tetris 或 T-Spin）
         
         // 7-bag 块序
         let bag = [];
@@ -477,8 +478,9 @@
                     baseScore += combo * 50;
                 }
                 
-                // Back-to-back 检测 (Tetris 或 T-Spin 3消及以上)
-                let isB2B = (clearedLines === 4) || (isTS && clearedLines >= 3);
+                // Back-to-back 检测：这次和上次都是高难度消除（Tetris 或 T-Spin）
+                let isHighScore = (clearedLines === 4) || isTS;
+                let isB2B = isHighScore && lastWasHighScore;
                 if (isB2B) {
                     baseScore = Math.floor(baseScore * 1.5);
                     backToBack = true;
@@ -489,8 +491,15 @@
                 score += baseScore * level;
                 lines += clearedLines;
                 
-                // 更新 Combo
-                combo = backToBack ? combo + 1 : (clearedLines > 0 ? combo + 1 : 0);
+                // 更新 Combo 和 B2B 状态
+                if (clearedLines > 0) {
+                    combo = backToBack ? combo + 1 : (combo > 0 ? combo + 1 : 1);
+                } else {
+                    combo = 0;
+                }
+                
+                // 更新上次是否高分
+                lastWasHighScore = isHighScore;
                 
                 // 升级
                 const newLevel = Math.floor(lines / 10) + 1;
@@ -675,6 +684,7 @@
                     tSpinPerformed = false;
                     tSpinValid = false;
                     bag = [];
+                    lastWasHighScore = false;
                     updateUI();
                     spawnPiece();
                     update();
