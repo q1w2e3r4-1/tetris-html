@@ -477,8 +477,8 @@
                     baseScore += combo * 50;
                 }
                 
-                // Back-to-back 检测 (Tetris 或 T-Spin 4消)
-                let isB2B = (clearedLines === 4) || (isTS && clearedLines >= 2);
+                // Back-to-back 检测 (Tetris 或 T-Spin 3消及以上)
+                let isB2B = (clearedLines === 4) || (isTS && clearedLines >= 3);
                 if (isB2B) {
                     baseScore = Math.floor(baseScore * 1.5);
                     backToBack = true;
