@@ -22,20 +22,20 @@
 
 ## Phase 4: 现代机制
 
-- [ ] Hold 功能
-- [ ] 幽灵方块
-- [ ] 硬drop
-- [ ] SRS 旋转表
+- [x] Hold 功能
+- [x] 幽灵方块
+- [x] 硬drop
+- [x] SRS 旋转表
 
 ## Phase 5: 计分系统
 
-- [ ] 基础计分
-- [ ] T-Spin 检测
-- [ ] Back-to-back 加成
-- [ ] 连击 (Combo)
+- [x] 基础计分
+- [x] T-Spin 检测
+- [x] Back-to-back 加成
+- [x] 连击 (Combo)
 
 ## Phase 6: 完善与优化
 
-- [ ] 等级系统
-- [ ] UI 优化
-- [ ] 测试调优
+- [x] 等级系统
+- [x] UI 优化
+- [x] 测试调优

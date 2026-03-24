@@ -96,6 +96,14 @@
                 <h3>Lines</h3>
                 <div class="value" id="lines">0</div>
             </div>
+            <div class="info-box">
+                <h3>Combo</h3>
+                <div class="value" id="combo">0</div>
+            </div>
+            <div class="info-box">
+                <h3>Status</h3>
+                <div class="value" id="status" style="font-size: 14px; color: #888;">-</div>
+            </div>
         </div>
         
         <div>
@@ -208,6 +216,14 @@
         let lastTime = 0;
         let dropCounter = 0;
         let dropInterval = 1000;
+        
+        // T-Spin 追踪
+        let lastActionWasRotate = false;
+        let tSpinPerformed = false;
+        
+        // Back-to-back 和 Combo
+        let backToBack = false;
+        let combo = 0;
 
         // ==================== 方块类 ====================
         class Piece {
@@ -310,6 +326,39 @@
                 }
                 return ghostY;
             }
+            
+            // 获取旋转中心
+            getCenter() {
+                const size = this.matrix.length;
+                return { x: this.x + Math.floor(size / 2), y: this.y + Math.floor(size / 2) };
+            }
+            
+            // 检查三个角是否有阻挡（T-Spin 条件）
+            checkCorners() {
+                const center = this.getCenter();
+                const corners = [
+                    { x: center.x - 1, y: center.y - 1 },
+                    { x: center.x + 1, y: center.y - 1 },
+                    { x: center.x - 1, y: center.y + 1 },
+                    { x: center.x + 1, y: center.y + 1 }
+                ];
+                
+                let blockedCorners = 0;
+                for (const corner of corners) {
+                    // 检查边界外或棋盘有方块
+                    if (corner.x < 0 || corner.x >= COLS || corner.y >= ROWS || 
+                        (corner.y >= 0 && board[corner.y][corner.x])) {
+                        blockedCorners++;
+                    }
+                }
+                return blockedCorners >= 3;
+            }
+        }
+        
+        // 检测是否是 T-Spin
+        function isTSpin() {
+            if (!currentPiece || currentPiece.type !== 'T') return false;
+            return tSpinPerformed && currentPiece.checkCorners();
         }
 
         // ==================== 游戏函数 ====================
@@ -386,10 +435,37 @@
             }
 
             if (clearedLines > 0) {
-                // 计分
-                const scores = [0, 100, 300, 500, 800];
-                score += scores[clearedLines] * level;
+                // 基础分数
+                const baseScores = [0, 100, 300, 500, 800];
+                let baseScore = baseScores[clearedLines] || 0;
+                
+                // 检测 T-Spin
+                let isTS = isTSpin();
+                let tSpinScores = [0, 400, 800, 1200]; // T-Spin 单、双、三、四消
+                
+                if (isTS && clearedLines <= 3) {
+                    baseScore = tSpinScores[clearedLines] || baseScore;
+                }
+                
+                // 计算 Combo 加成
+                if (combo > 0) {
+                    baseScore += combo * 50;
+                }
+                
+                // Back-to-back 检测 (Tetris 或 T-Spin 4消)
+                let isB2B = (clearedLines === 4) || (isTS && clearedLines >= 2);
+                if (isB2B) {
+                    baseScore = Math.floor(baseScore * 1.5);
+                    backToBack = true;
+                } else {
+                    backToBack = false;
+                }
+                
+                score += baseScore * level;
                 lines += clearedLines;
+                
+                // 更新 Combo
+                combo = backToBack ? combo + 1 : (clearedLines > 0 ? combo + 1 : 0);
                 
                 // 升级
                 const newLevel = Math.floor(lines / 10) + 1;
@@ -399,6 +475,12 @@
                 }
 
                 updateUI();
+                
+                // 重置 T-Spin 标记
+                tSpinPerformed = false;
+            } else {
+                // 没有消除，断开 Combo
+                combo = 0;
             }
         }
 
@@ -406,6 +488,17 @@
             document.getElementById('score').textContent = score;
             document.getElementById('level').textContent = level;
             document.getElementById('lines').textContent = lines;
+            document.getElementById('combo').textContent = combo;
+            
+            // 显示 Back-to-back 状态
+            const statusEl = document.getElementById('status');
+            if (backToBack) {
+                statusEl.textContent = 'B2B!';
+                statusEl.style.color = '#f0a000';
+            } else {
+                statusEl.textContent = '-';
+                statusEl.style.color = '#888';
+            }
         }
 
         function drawBlock(context, x, y, color, size = BLOCK_SIZE) {
@@ -551,6 +644,9 @@
                     gameOver = false;
                     holdPiece = null;
                     canHold = true;
+                    combo = 0;
+                    backToBack = false;
+                    tSpinPerformed = false;
                     updateUI();
                     spawnPiece();
                     update();
@@ -563,32 +659,43 @@
             switch (event.key) {
                 case 'ArrowLeft':
                     currentPiece.move(-1, 0);
+                    lastActionWasRotate = false;
                     break;
                 case 'ArrowRight':
                     currentPiece.move(1, 0);
+                    lastActionWasRotate = false;
                     break;
                 case 'ArrowDown':
                     currentPiece.move(0, 1);
                     dropCounter = 0;
+                    lastActionWasRotate = false;
                     break;
                 case 'ArrowUp':
                 case 'x':
                 case 'X':
-                    currentPiece.rotate(1);
+                    if (currentPiece.rotate(1)) {
+                        lastActionWasRotate = true;
+                        tSpinPerformed = true;
+                    }
                     break;
                 case 'z':
                 case 'Z':
-                    currentPiece.rotate(-1);
+                    if (currentPiece.rotate(-1)) {
+                        lastActionWasRotate = true;
+                        tSpinPerformed = true;
+                    }
                     break;
                 case ' ':
                     currentPiece.hardDrop();
                     lockPiece();
                     dropCounter = 0;
+                    lastActionWasRotate = false;
                     break;
                 case 'c':
                 case 'C':
                 case 'Shift':
                     holdCurrentPiece();
+                    lastActionWasRotate = false;
                     break;
             }
             draw();
