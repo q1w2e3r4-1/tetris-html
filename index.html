@@ -290,48 +290,43 @@
                 if (this.type === 'O') return false;  // O 不旋转
                 
                 // 计算目标状态
+                const stateKeys = [0, 'R', 2, 'L'];
                 const currentStateIdx = ROTATION_STATE[this.state];
                 let nextStateIdx = (currentStateIdx + (dir > 0 ? 1 : 3)) % 4;
-                const stateKeys = [0, 'R', 2, 'L'];
                 const nextState = stateKeys[nextStateIdx];
                 
                 // 获取 kick 表
                 const kickTable = this.type === 'I' ? KICK_I : KICK_JLSTZ;
                 const kicks = kickTable[this.state][nextState];
                 
-                // 尝试基本旋转
-                this.matrix = this.rotateMatrix(this.matrix, dir);
+                // 获取目标状态的矩阵
+                const newMatrix = this.deepCopy(TETROMINOES[this.type].states[nextStateIdx]);
                 
                 // 尝试5次 kick
                 for (let i = 0; i < kicks.length; i++) {
                     const [dx, dy] = kicks[i];
-                    if (this.isValid(dx, dy)) {
-                        this.x += dx;
-                        this.y += dy;
+                    
+                    // 临时设置新矩阵和新位置来测试
+                    const oldMatrix = this.matrix;
+                    const oldX = this.x;
+                    const oldY = this.y;
+                    
+                    this.matrix = newMatrix;
+                    this.x += dx;
+                    this.y += dy;
+                    
+                    if (this.isValid()) {
                         this.state = nextState;
                         return true;
                     }
+                    
+                    // 失败，恢复
+                    this.matrix = oldMatrix;
+                    this.x = oldX;
+                    this.y = oldY;
                 }
                 
-                // 全部失败，回退
-                this.matrix = this.rotateMatrix(this.matrix, -dir);
                 return false;
-            }
-
-            rotateMatrix(matrix, dir) {
-                const N = matrix.length;
-                const result = [];
-                for (let i = 0; i < N; i++) {
-                    result[i] = [];
-                    for (let j = 0; j < N; j++) {
-                        if (dir === 1) { // 顺时针
-                            result[i][j] = matrix[N - 1 - j][i];
-                        } else { // 逆时针
-                            result[i][j] = matrix[j][N - 1 - i];
-                        }
-                    }
-                }
-                return result;
             }
 
             isValid(offsetX = 0, offsetY = 0) {
@@ -606,20 +601,25 @@
         }
 
         function drawNextPiece() {
-            if (nextPiece) {
-                // 创建显示用的 piece，使用状态0
-                const displayPiece = new Piece(nextPiece.type, 0, 0);
-                drawPiece(nextCanvas, nextCtx, displayPiece);
-            }
+            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            if (!nextPiece) return;
+            
+            // 创建显示用的 piece，使用状态0，居中显示
+            const displayPiece = new Piece(nextPiece.type, 0, 0);
+            // 重置为居中位置用于显示
+            displayPiece.x = 0;
+            displayPiece.y = 0;
+            drawPiece(nextCanvas, nextCtx, displayPiece);
         }
 
         function drawHoldPiece() {
-            if (holdPiece) {
-                const displayPiece = new Piece(holdPiece.type, 0, 0);
-                drawPiece(holdCanvas, holdCtx, displayPiece);
-            } else {
-                holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-            }
+            holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+            if (!holdPiece) return;
+            
+            const displayPiece = new Piece(holdPiece.type, 0, 0);
+            displayPiece.x = 0;
+            displayPiece.y = 0;
+            drawPiece(holdCanvas, holdCtx, displayPiece);
         }
 
         function holdCurrentPiece() {
