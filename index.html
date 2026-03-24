@@ -220,10 +220,30 @@
         // T-Spin 追踪
         let lastActionWasRotate = false;
         let tSpinPerformed = false;
+        let tSpinValid = false;  // 确认是有效的 T-Spin
         
         // Back-to-back 和 Combo
         let backToBack = false;
         let combo = 0;
+        
+        // 7-bag 块序
+        let bag = [];
+        
+        function refillBag() {
+            bag = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+            // Fisher-Yates 洗牌
+            for (let i = bag.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [bag[i], bag[j]] = [bag[j], bag[i]];
+            }
+        }
+        
+        function getNextFromBag() {
+            if (bag.length === 0) {
+                refillBag();
+            }
+            return bag.pop();
+        }
 
         // ==================== 方块类 ====================
         class Piece {
@@ -327,20 +347,22 @@
                 return ghostY;
             }
             
-            // 获取旋转中心
-            getCenter() {
-                const size = this.matrix.length;
-                return { x: this.x + Math.floor(size / 2), y: this.y + Math.floor(size / 2) };
+            // 获取 T 方块的中心点（相对于棋盘）
+            getTCenter() {
+                // T 方块形状是 3x3，中心是 (1,1)
+                return { x: this.x + 1, y: this.y + 1 };
             }
             
-            // 检查三个角是否有阻挡（T-Spin 条件）
-            checkCorners() {
-                const center = this.getCenter();
+            // 检查 T 周围三个角是否有阻挡（T-Spin 条件）
+            checkTCorners() {
+                const center = this.getTCenter();
+                // T-Spin 需要检查 T 周围的三个角（上左、上右、下左、下右）
+                // 至少3个角被阻挡
                 const corners = [
-                    { x: center.x - 1, y: center.y - 1 },
-                    { x: center.x + 1, y: center.y - 1 },
-                    { x: center.x - 1, y: center.y + 1 },
-                    { x: center.x + 1, y: center.y + 1 }
+                    { x: center.x - 1, y: center.y - 1 },  // 左上
+                    { x: center.x + 1, y: center.y - 1 },  // 右上
+                    { x: center.x - 1, y: center.y + 1 },  // 左下
+                    { x: center.x + 1, y: center.y + 1 }   // 右下
                 ];
                 
                 let blockedCorners = 0;
@@ -355,10 +377,11 @@
             }
         }
         
-        // 检测是否是 T-Spin
-        function isTSpin() {
+        // 检测是否是 T-Spin（需要在消行时调用）
+        function checkTSpin() {
             if (!currentPiece || currentPiece.type !== 'T') return false;
-            return tSpinPerformed && currentPiece.checkCorners();
+            // T-Spin 条件：1. 执行过旋转 2. 落稳后3个角被阻挡
+            return tSpinPerformed && currentPiece.checkTCorners();
         }
 
         // ==================== 游戏函数 ====================
@@ -373,8 +396,7 @@
         }
 
         function getRandomPiece() {
-            const types = Object.keys(TETROMINOES);
-            const type = types[Math.floor(Math.random() * types.length)];
+            const type = getNextFromBag();
             return new Piece(type);
         }
 
@@ -392,6 +414,9 @@
         }
 
         function lockPiece() {
+            // 记录 T-Spin 状态（必须在锁定前记录）
+            tSpinValid = tSpinPerformed && currentPiece && currentPiece.type === 'T' && currentPiece.checkTCorners();
+            
             // 将方块锁定到棋盘
             for (let y = 0; y < currentPiece.matrix.length; y++) {
                 for (let x = 0; x < currentPiece.matrix[y].length; x++) {
@@ -439,8 +464,8 @@
                 const baseScores = [0, 100, 300, 500, 800];
                 let baseScore = baseScores[clearedLines] || 0;
                 
-                // 检测 T-Spin
-                let isTS = isTSpin();
+                // 检测 T-Spin（使用锁定时的状态）
+                let isTS = tSpinValid;
                 let tSpinScores = [0, 400, 800, 1200]; // T-Spin 单、双、三、四消
                 
                 if (isTS && clearedLines <= 3) {
@@ -478,6 +503,7 @@
                 
                 // 重置 T-Spin 标记
                 tSpinPerformed = false;
+                tSpinValid = false;
             } else {
                 // 没有消除，断开 Combo
                 combo = 0;
@@ -647,6 +673,8 @@
                     combo = 0;
                     backToBack = false;
                     tSpinPerformed = false;
+                    tSpinValid = false;
+                    bag = [];
                     updateUI();
                     spawnPiece();
                     update();
