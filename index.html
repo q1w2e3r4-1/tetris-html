@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tetris HTML</title>
+    <title>Tetris HTML - SRS</title>
     <style>
         * {
             margin: 0;
@@ -120,80 +120,93 @@
         const ROWS = 20;
         const BLOCK_SIZE = 30;
         
-        // 方块形状定义 (SRS 标准)
+        // 旋转状态: 0=spawn, R=顺时针, 2=180, L=逆时针
+        const ROTATION_STATE = { 0: 0, R: 1, '2': 2, L: 3 };
+        
+        // 方块 SRS 生成态矩阵（4种旋转状态）
         const TETROMINOES = {
             I: {
-                shape: [
-                    [0,0,0,0],
-                    [1,1,1,1],
-                    [0,0,0,0],
-                    [0,0,0,0]
-                ],
-                color: '#00f0f0'
+                color: '#00f0f0',
+                // 旋转状态: 0, R, 2, L
+                states: [
+                    [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],  // 0
+                    [[0,0,1,0], [0,0,1,0], [0,0,1,0], [0,0,1,0]],  // R
+                    [[0,0,0,0], [0,0,0,0], [1,1,1,1], [0,0,0,0]],  // 2
+                    [[0,1,0,0], [0,1,0,0], [0,1,0,0], [0,1,0,0]]   // L
+                ]
             },
             O: {
-                shape: [
-                    [1,1],
-                    [1,1]
-                ],
-                color: '#f0f000'
+                color: '#f0f000',
+                states: [
+                    [[1,1], [1,1]],  // 0
+                    [[1,1], [1,1]],  // R (same)
+                    [[1,1], [1,1]],  // 2 (same)
+                    [[1,1], [1,1]]   // L (same)
+                ]
             },
             T: {
-                shape: [
-                    [0,1,0],
-                    [1,1,1],
-                    [0,0,0]
-                ],
-                color: '#a000f0'
+                color: '#a000f0',
+                states: [
+                    [[0,1,0], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side up
+                    [[0,1,0], [0,1,1], [0,1,0]],  // R
+                    [[0,0,0], [1,1,1], [0,1,0]],  // 2
+                    [[0,1,0], [1,1,0], [0,1,0]]   // L
+                ]
             },
             S: {
-                shape: [
-                    [0,1,1],
-                    [1,1,0],
-                    [0,0,0]
-                ],
-                color: '#00f000'
+                color: '#00f000',
+                states: [
+                    [[0,1,1], [1,1,0], [0,0,0]],  // 0 (spawn) - horizontal
+                    [[0,1,0], [0,1,1], [0,0,1]],  // R
+                    [[0,0,0], [0,1,1], [1,1,0]],  // 2
+                    [[1,0,0], [1,1,0], [0,1,0]]   // L
+                ]
             },
             Z: {
-                shape: [
-                    [1,1,0],
-                    [0,1,1],
-                    [0,0,0]
-                ],
-                color: '#f00000'
+                color: '#f00000',
+                states: [
+                    [[1,1,0], [0,1,1], [0,0,0]],  // 0 (spawn) - horizontal
+                    [[0,0,1], [0,1,1], [0,1,0]],  // R
+                    [[0,0,0], [1,1,0], [0,1,1]],  // 2
+                    [[0,1,0], [1,1,0], [1,0,0]]   // L
+                ]
             },
             J: {
-                shape: [
-                    [1,0,0],
-                    [1,1,1],
-                    [0,0,0]
-                ],
-                color: '#0000f0'
+                color: '#0000f0',
+                states: [
+                    [[1,0,0], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side left
+                    [[0,1,0], [0,1,0], [1,1,0]],  // R
+                    [[0,0,0], [1,1,1], [0,0,1]],  // 2
+                    [[0,1,1], [0,1,0], [0,1,0]]   // L
+                ]
             },
             L: {
-                shape: [
-                    [0,0,1],
-                    [1,1,1],
-                    [0,0,0]
-                ],
-                color: '#f0a000'
+                color: '#f0a000',
+                states: [
+                    [[0,0,1], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side left
+                    [[1,1,0], [0,1,0], [0,1,0]],  // R
+                    [[0,0,0], [1,1,1], [1,0,0]],  // 2
+                    [[0,1,0], [0,1,0], [0,1,1]]   // L
+                ]
             }
         };
 
-        // SRS 旋转表 (测试点)
-        const SRS = {
-            I: {
-                0: [[0,0], [-1,0], [2,0], [-1,2], [2,-1]],
-                90: [[0,0], [0,-1], [0,2], [1,-1], [-2,1]],
-                180: [[0,0], [1,0], [-2,0], [1,-2], [-2,1]],
-                270: [[0,0], [0,1], [0,-2], [-1,1], [2,-1]]
-            },
-            default: {
-                0: [[0,0], [-1,0], [-1,-1], [0,2], [-1,2]],
-                90: [[0,0], [1,0], [1,1], [0,-2], [1,-2]],
-                180: [[0,0], [1,0], [1,-1], [0,2], [1,2]],
-                270: [[0,0], [-1,0], [-1,1], [0,-2], [-1,-2]]
-            }
+        // ==================== SRS Wall Kick 表 ====================
+        
+        // J, L, S, T, Z 通用 Kick 表
+        const KICK_JLSTZ = {
+            0: { R: [[0,0], [-1,0], [-1,+1], [0,-2], [-1,-2]], L: [[0,0], [+1,0], [+1,+1], [0,-2], [+1,-2]] },
+            R: { 0: [[0,0], [+1,0], [+1,-1], [0,+2], [+1,+2]], '2': [[0,0], [+1,0], [+1,-1], [0,+2], [+1,+2]] },
+            2: { R: [[0,0], [-1,0], [-1,+1], [0,-2], [-1,-2]], L: [[0,0], [+1,0], [+1,+1], [0,-2], [+1,-2]] },
+            L: { '2': [[0,0], [-1,0], [-1,-1], [0,+2], [-1,+2]], 0: [[0,0], [-1,0], [-1,-1], [0,+2], [-1,+2]] }
+        };
+        
+        // I 方块 Kick 表
+        const KICK_I = {
+            0: { R: [[0,0], [-2,0], [+1,0], [-2,-1], [+1,+2]], L: [[0,0], [-1,0], [+2,0], [-1,+2], [+2,-1]] },
+            R: { 0: [[0,0], [+2,0], [-1,0], [+2,+1], [-1,-2]], '2': [[0,0], [-1,0], [+2,0], [-1,+2], [+2,-1]] },
+            2: { R: [[0,0], [+1,0], [-2,0], [+1,-2], [-2,+1]], L: [[0,0], [+2,0], [-1,0], [+2,+1], [-1,-2]] },
+            L: { '2': [[0,0], [-2,0], [+1,0], [-2,-1], [+1,+2]], 0: [[0,0], [+1,0], [-2,0], [+1,-2], [-2,+1]] }
         };
 
         // ==================== 游戏状态 ====================
@@ -204,11 +217,11 @@
         const holdCanvas = document.getElementById('holdCanvas');
         const holdCtx = holdCanvas.getContext('2d');
 
-        let board = [];           // 棋盘
-        let currentPiece = null;  // 当前方块
-        let nextPiece = null;     // 下一个方块
-        let holdPiece = null;     // Hold 的方块
-        let canHold = true;       // 是否可以 Hold
+        let board = [];
+        let currentPiece = null;
+        let nextPiece = null;
+        let holdPiece = null;
+        let canHold = true;
         let score = 0;
         let level = 1;
         let lines = 0;
@@ -218,21 +231,19 @@
         let dropInterval = 1000;
         
         // T-Spin 追踪
-        let lastActionWasRotate = false;
         let tSpinPerformed = false;
-        let tSpinValid = false;  // 确认是有效的 T-Spin
+        let tSpinValid = false;
         
- // Back-to-back 和 Combo
+        // Back-to-back 和 Combo
         let backToBack = false;
         let combo = 0;
-        let lastWasHighScore = false;  // 上一次是否是高分消除（Tetris 或 T-Spin）
+        let lastWasHighScore = false;
         
         // 7-bag 块序
         let bag = [];
         
         function refillBag() {
             bag = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
-            // Fisher-Yates 洗牌
             for (let i = bag.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [bag[i], bag[j]] = [bag[j], bag[i]];
@@ -248,42 +259,63 @@
 
         // ==================== 方块类 ====================
         class Piece {
-            constructor(type, x = 3, y = 0) {
+            constructor(type, x = null, y = 0) {
                 this.type = type;
-                this.x = x;
-                this.y = y;
-                this.rotation = 0;
-                this.matrix = this.deepCopy(TETROMINOES[type].shape);
+                this.state = 0;  // 0, R, 2, L
+                this.matrix = this.deepCopy(TETROMINOES[type].states[0]);
                 this.color = TETROMINOES[type].color;
+                
+                // 根据类型设置生成位置
+                if (x !== null) {
+                    this.x = x;
+                } else {
+                    // SRS 生成位置：I/O居中，其他偏左
+                    if (type === 'I') {
+                        this.x = -1;  // I 在生成时稍微偏左
+                    } else if (type === 'O') {
+                        this.x = 4;   // O 居中
+                    } else {
+                        this.x = -1;  // 其他偏左
+                    }
+                }
+                this.y = y;
             }
 
             deepCopy(matrix) {
                 return matrix.map(row => [...row]);
             }
 
+            // 旋转：尝试5次 wall kick
             rotate(dir) {
-                const oldMatrix = this.matrix;
-                this.matrix = this.rotateMatrix(this.matrix, dir);
-                this.rotation = (this.rotation + dir + 360) % 360;
+                if (this.type === 'O') return false;  // O 不旋转
                 
-                // 检查旋转后是否有效，无效则尝试墙踢
-                if (!this.isValid()) {
-                    const kicks = this.getKickOffsets();
-                    for (const [dx, dy] of kicks) {
+                // 计算目标状态
+                const currentStateIdx = ROTATION_STATE[this.state];
+                let nextStateIdx = (currentStateIdx + (dir > 0 ? 1 : 3)) % 4;
+                const stateKeys = [0, 'R', 2, 'L'];
+                const nextState = stateKeys[nextStateIdx];
+                
+                // 获取 kick 表
+                const kickTable = this.type === 'I' ? KICK_I : KICK_JLSTZ;
+                const kicks = kickTable[this.state][nextState];
+                
+                // 尝试基本旋转
+                this.matrix = this.rotateMatrix(this.matrix, dir);
+                
+                // 尝试5次 kick
+                for (let i = 0; i < kicks.length; i++) {
+                    const [dx, dy] = kicks[i];
+                    if (this.isValid(dx, dy)) {
                         this.x += dx;
                         this.y += dy;
-                        if (this.isValid()) {
-                            return true;
-                        }
-                        this.x -= dx;
-                        this.y -= dy;
+                        this.state = nextState;
+                        return true;
                     }
-                    // 还原
-                    this.matrix = oldMatrix;
-                    this.rotation = (this.rotation - dir + 360) % 360;
-                    return false;
                 }
-                return true;
+                
+                // 全部失败，回退
+                this.matrix = this.rotateMatrix(this.matrix, -dir);
+                return false;
             }
 
             rotateMatrix(matrix, dir) {
@@ -300,13 +332,6 @@
                     }
                 }
                 return result;
-            }
-
-            getKickOffsets() {
-                const key = this.type === 'I' ? 'I' : 'default';
-                const currentRotation = this.rotation;
-                const nextRotation = (currentRotation + 90 + 360) % 360;
-                return SRS[key][currentRotation] || SRS.default[currentRotation] || [[0,0]];
             }
 
             isValid(offsetX = 0, offsetY = 0) {
@@ -348,27 +373,23 @@
                 return ghostY;
             }
             
-            // 获取 T 方块的中心点（相对于棋盘）
+            // 获取 T 方块的中心点
             getTCenter() {
-                // T 方块形状是 3x3，中心是 (1,1)
                 return { x: this.x + 1, y: this.y + 1 };
             }
             
-            // 检查 T 周围三个角是否有阻挡（T-Spin 条件）
+            // 检查 T 周围角
             checkTCorners() {
                 const center = this.getTCenter();
-                // T-Spin 需要检查 T 周围的三个角（上左、上右、下左、下右）
-                // 至少3个角被阻挡
                 const corners = [
-                    { x: center.x - 1, y: center.y - 1 },  // 左上
-                    { x: center.x + 1, y: center.y - 1 },  // 右上
-                    { x: center.x - 1, y: center.y + 1 },  // 左下
-                    { x: center.x + 1, y: center.y + 1 }   // 右下
+                    { x: center.x - 1, y: center.y - 1 },
+                    { x: center.x + 1, y: center.y - 1 },
+                    { x: center.x - 1, y: center.y + 1 },
+                    { x: center.x + 1, y: center.y + 1 }
                 ];
                 
                 let blockedCorners = 0;
                 for (const corner of corners) {
-                    // 检查边界外或棋盘有方块
                     if (corner.x < 0 || corner.x >= COLS || corner.y >= ROWS || 
                         (corner.y >= 0 && board[corner.y][corner.x])) {
                         blockedCorners++;
@@ -376,13 +397,6 @@
                 }
                 return blockedCorners >= 3;
             }
-        }
-        
-        // 检测是否是 T-Spin（需要在消行时调用）
-        function checkTSpin() {
-            if (!currentPiece || currentPiece.type !== 'T') return false;
-            // T-Spin 条件：1. 执行过旋转 2. 落稳后3个角被阻挡
-            return tSpinPerformed && currentPiece.checkTCorners();
         }
 
         // ==================== 游戏函数 ====================
@@ -406,7 +420,6 @@
             nextPiece = getRandomPiece();
             canHold = true;
             
-            // 检查生成位置是否有碰撞
             if (!currentPiece.isValid()) {
                 gameOver = true;
             }
@@ -415,10 +428,8 @@
         }
 
         function lockPiece() {
-            // 记录 T-Spin 状态（必须在锁定前记录）
             tSpinValid = tSpinPerformed && currentPiece && currentPiece.type === 'T' && currentPiece.checkTCorners();
             
-            // 将方块锁定到棋盘
             for (let y = 0; y < currentPiece.matrix.length; y++) {
                 for (let x = 0; x < currentPiece.matrix[y].length; x++) {
                     if (currentPiece.matrix[y][x]) {
@@ -431,10 +442,7 @@
                 }
             }
 
-            // 检查行消除
             clearLines();
-            
-            // 生成新方块
             spawnPiece();
         }
 
@@ -451,34 +459,29 @@
                 }
                 
                 if (full) {
-                    // 移除该行
                     board.splice(y, 1);
-                    // 添加新行到顶部
                     board.unshift(new Array(COLS).fill(0));
                     clearedLines++;
-                    y++; // 重新检查这一行
+                    y++;
                 }
             }
 
             if (clearedLines > 0) {
-                // 基础分数
                 const baseScores = [0, 100, 300, 500, 800];
                 let baseScore = baseScores[clearedLines] || 0;
                 
-                // 检测 T-Spin（使用锁定时的状态）
+                // T-Spin
                 let isTS = tSpinValid;
-                let tSpinScores = [0, 400, 800, 1200]; // T-Spin 单、双、三、四消
-                
+                let tSpinScores = [0, 400, 800, 1200];
                 if (isTS && clearedLines <= 3) {
                     baseScore = tSpinScores[clearedLines] || baseScore;
                 }
                 
-                // 计算 Combo 加成
                 if (combo > 0) {
                     baseScore += combo * 50;
                 }
                 
-                // Back-to-back 检测：这次和上次都是高难度消除（Tetris 或 T-Spin）
+                // B2B
                 let isHighScore = (clearedLines === 4) || isTS;
                 let isB2B = isHighScore && lastWasHighScore;
                 if (isB2B) {
@@ -491,17 +494,14 @@
                 score += baseScore * level;
                 lines += clearedLines;
                 
-                // 更新 Combo 和 B2B 状态
                 if (clearedLines > 0) {
                     combo = backToBack ? combo + 1 : (combo > 0 ? combo + 1 : 1);
                 } else {
                     combo = 0;
                 }
                 
-                // 更新上次是否高分
                 lastWasHighScore = isHighScore;
                 
-                // 升级
                 const newLevel = Math.floor(lines / 10) + 1;
                 if (newLevel > level) {
                     level = newLevel;
@@ -509,12 +509,9 @@
                 }
 
                 updateUI();
-                
-                // 重置 T-Spin 标记
                 tSpinPerformed = false;
                 tSpinValid = false;
             } else {
-                // 没有消除，断开 Combo
                 combo = 0;
             }
         }
@@ -525,7 +522,6 @@
             document.getElementById('lines').textContent = lines;
             document.getElementById('combo').textContent = combo;
             
-            // 显示 Back-to-back 状态
             const statusEl = document.getElementById('status');
             if (backToBack) {
                 statusEl.textContent = 'B2B!';
@@ -539,23 +535,17 @@
         function drawBlock(context, x, y, color, size = BLOCK_SIZE) {
             context.fillStyle = color;
             context.fillRect(x * size, y * size, size, size);
-            
-            // 边框效果
             context.strokeStyle = 'rgba(255,255,255,0.3)';
             context.lineWidth = 2;
             context.strokeRect(x * size + 1, y * size + 1, size - 2, size - 2);
-            
-            // 内部高光
             context.fillStyle = 'rgba(255,255,255,0.2)';
             context.fillRect(x * size + 2, y * size + 2, size - 4, 4);
         }
 
         function draw() {
-            // 清空画布
             ctx.fillStyle = '#0f3460';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // 绘制棋盘
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
                     if (board[y][x]) {
@@ -564,7 +554,6 @@
                 }
             }
 
-            // 绘制幽灵方块
             if (currentPiece) {
                 const ghostY = currentPiece.getGhostY();
                 for (let y = 0; y < currentPiece.matrix.length; y++) {
@@ -578,7 +567,6 @@
                 }
             }
 
-            // 绘制当前方块
             if (currentPiece) {
                 for (let y = 0; y < currentPiece.matrix.length; y++) {
                     for (let x = 0; x < currentPiece.matrix[y].length; x++) {
@@ -589,7 +577,6 @@
                 }
             }
 
-            // 游戏结束显示
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -606,7 +593,6 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!piece) return;
             
-            // 居中绘制
             const offsetX = (canvas.width / size - piece.matrix[0].length) / 2;
             const offsetY = (canvas.height / size - piece.matrix.length) / 2;
             
@@ -620,11 +606,20 @@
         }
 
         function drawNextPiece() {
-            drawPiece(nextCanvas, nextCtx, nextPiece);
+            if (nextPiece) {
+                // 创建显示用的 piece，使用状态0
+                const displayPiece = new Piece(nextPiece.type, 0, 0);
+                drawPiece(nextCanvas, nextCtx, displayPiece);
+            }
         }
 
         function drawHoldPiece() {
-            drawPiece(holdCanvas, holdCtx, holdPiece ? new Piece(holdPiece.type) : null);
+            if (holdPiece) {
+                const displayPiece = new Piece(holdPiece.type, 0, 0);
+                drawPiece(holdCanvas, holdCtx, displayPiece);
+            } else {
+                holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+            }
         }
 
         function holdCurrentPiece() {
@@ -670,7 +665,6 @@
         document.addEventListener('keydown', event => {
             if (gameOver) {
                 if (event.key === 'Enter') {
-                    // 重新开始
                     initBoard();
                     score = 0;
                     level = 1;
@@ -697,29 +691,24 @@
             switch (event.key) {
                 case 'ArrowLeft':
                     currentPiece.move(-1, 0);
-                    lastActionWasRotate = false;
                     break;
                 case 'ArrowRight':
                     currentPiece.move(1, 0);
-                    lastActionWasRotate = false;
                     break;
                 case 'ArrowDown':
                     currentPiece.move(0, 1);
                     dropCounter = 0;
-                    lastActionWasRotate = false;
                     break;
                 case 'ArrowUp':
                 case 'x':
                 case 'X':
                     if (currentPiece.rotate(1)) {
-                        lastActionWasRotate = true;
                         tSpinPerformed = true;
                     }
                     break;
                 case 'z':
                 case 'Z':
                     if (currentPiece.rotate(-1)) {
-                        lastActionWasRotate = true;
                         tSpinPerformed = true;
                     }
                     break;
@@ -727,13 +716,11 @@
                     currentPiece.hardDrop();
                     lockPiece();
                     dropCounter = 0;
-                    lastActionWasRotate = false;
                     break;
                 case 'c':
                 case 'C':
                 case 'Shift':
                     holdCurrentPiece();
-                    lastActionWasRotate = false;
                     break;
             }
             draw();
