@@ -111,7 +111,7 @@
         <div class="center-panel">
             <canvas id="gameCanvas" width="300" height="600"></canvas>
             <div class="controls">
-                ←→ Move | ↑/X Rotate | Z CCW | ↓ Soft | Space Hard | C Hold
+                ←→ Move | ↑/X/Z 旋转(双击180) | A 180° | ↓ Soft | Space Hard | C Hold
             </div>
         </div>
 
@@ -188,19 +188,19 @@
             J: {
                 color: '#0000f0',
                 states: [
-                    [[1,0,0], [1,1,1], [0,0,0]],  // 0
-                    [[0,1,0], [0,1,0], [1,1,0]],  // R
-                    [[0,0,0], [1,1,1], [0,0,1]],  // 2
-                    [[0,1,1], [0,1,0], [0,1,0]]   // L
+                    [[0,0,1], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side left
+                    [[0,1,0], [0,1,0], [0,1,1]],  // R
+                    [[0,0,0], [1,1,1], [1,0,0]],  // 2
+                    [[1,1,0], [0,1,0], [0,1,0]]  // L
                 ]
             },
             L: {
                 color: '#f0a000',
                 states: [
-                    [[0,0,1], [1,1,1], [0,0,0]],  // 0
-                    [[1,1,0], [0,1,0], [0,1,0]],  // R
-                    [[0,0,0], [1,1,1], [1,0,0]],  // 2
-                    [[0,1,0], [0,1,0], [0,1,1]]   // L
+                    [[1,0,0], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side left
+                    [[0,1,1], [0,1,0], [0,1,0]],  // R
+                    [[0,0,0], [1,1,1], [0,0,1]],  // 2
+                    [[0,1,0], [0,1,0], [1,0,0]]   // L
                 ]
             }
         };
@@ -243,6 +243,8 @@
         
         let tSpinPerformed = false;
         let tSpinValid = false;
+        let lastRotateKey = '';
+        let lastRotateTime = 0;
         let backToBack = false;
         let combo = 0;
         let lastWasHighScore = false;
@@ -283,15 +285,25 @@
 
             deepCopy(matrix) { return matrix.map(row => [...row]); }
 
+            // 旋转：dir=1 顺时针, dir=-1 逆时针, dir=2 180度
             rotate(dir) {
                 if (this.type === 'O') return false;
                 
                 const stateKeys = [0, 'R', 2, 'L'];
-                const nextState = stateKeys[(ROTATION_STATE[this.state] + (dir > 0 ? 1 : 3)) % 4];
+                
+                // 计算目标状态
+                let currentIdx = ROTATION_STATE[this.state];
+                let nextIdx;
+                if (dir === 2) { // 180度
+                    nextIdx = (currentIdx + 2) % 4;
+                } else {
+                    nextIdx = (currentIdx + (dir > 0 ? 1 : 3)) % 4;
+                }
+                const nextState = stateKeys[nextIdx];
                 
                 const kickTable = this.type === 'I' ? KICK_I : KICK_JLSTZ;
                 const kicks = kickTable[this.state][nextState];
-                const newMatrix = this.deepCopy(TETROMINOES[this.type].states[ROTATION_STATE[nextState]]);
+                const newMatrix = this.deepCopy(TETROMINOES[this.type].states[nextIdx]);
                 
                 for (const [dx, dy] of kicks) {
                     const oldMatrix = this.matrix;
@@ -611,10 +623,31 @@
                 case 'ArrowRight': currentPiece.move(1, 0); break;
                 case 'ArrowDown': currentPiece.move(0, 1); dropCounter = 0; break;
                 case 'ArrowUp': case 'x': case 'X':
-                    if (currentPiece.rotate(1)) tSpinPerformed = true;
+                    // 检测双击实现180度旋转（200ms内同键）
+                    const now = Date.now();
+                    if (lastRotateKey === 'cw' && now - lastRotateTime < 200) {
+                        if (currentPiece.rotate(2)) { // 180度
+                            tSpinPerformed = true;
+                            lastRotateKey = '';
+                        }
+                    } else {
+                        if (currentPiece.rotate(1)) tSpinPerformed = true;
+                        lastRotateKey = 'cw';
+                        lastRotateTime = now;
+                    }
                     break;
                 case 'z': case 'Z':
-                    if (currentPiece.rotate(-1)) tSpinPerformed = true;
+                    const nowZ = Date.now();
+                    if (lastRotateKey === 'ccw' && nowZ - lastRotateTime < 200) {
+                        if (currentPiece.rotate(2)) {
+                            tSpinPerformed = true;
+                            lastRotateKey = '';
+                        }
+                    } else {
+                        if (currentPiece.rotate(-1)) tSpinPerformed = true;
+                        lastRotateKey = 'ccw';
+                        lastRotateTime = nowZ;
+                    }
                     break;
                 case ' ': // Space - 硬drop
                     currentPiece.hardDrop();
@@ -622,6 +655,9 @@
                     dropCounter = 0;
                     break;
                 case 'c': case 'C': case 'Shift': holdCurrentPiece(); break;
+                case 'a': case 'A': // 180度旋转
+                    if (currentPiece.rotate(2)) tSpinPerformed = true;
+                    break;
             }
             draw();
         });
