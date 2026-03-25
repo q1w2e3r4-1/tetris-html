@@ -14,46 +14,51 @@
             background: #1a1a2e;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
             font-family: 'Segoe UI', sans-serif;
             color: #eee;
+            padding: 20px;
         }
-        .game-container {
+        .game-wrapper {
             display: flex;
             gap: 20px;
             align-items: flex-start;
         }
-        .sidebar {
-            width: 150px;
+        .left-panel {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 12px;
+            width: 100px;
         }
         .info-box {
             background: #16213e;
-            padding: 15px;
+            padding: 10px;
             border-radius: 8px;
             border: 1px solid #0f3460;
         }
         .info-box h3 {
-            font-size: 12px;
+            font-size: 11px;
             color: #888;
             margin-bottom: 5px;
             text-transform: uppercase;
         }
         .info-box .value {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
             color: #e94560;
         }
-        .next-piece, .hold-piece {
-            width: 100px;
-            height: 100px;
+        .preview-box {
             background: #0f3460;
             border-radius: 5px;
             display: flex;
             justify-content: center;
+            align-items: center;
+            padding: 5px;
+        }
+        .center-panel {
+            display: flex;
+            flex-direction: column;
             align-items: center;
         }
         canvas {
@@ -62,28 +67,24 @@
             box-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
         }
         .controls {
-            margin-top: 20px;
+            margin-top: 15px;
             text-align: center;
             color: #666;
-            font-size: 12px;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100px;
         }
     </style>
 </head>
 <body>
-    <div class="game-container">
-        <div class="sidebar">
-            <div class="info-box">
-                <h3>Next</h3>
-                <div class="next-piece">
-                    <canvas id="nextCanvas" width="80" height="80"></canvas>
-                </div>
-            </div>
-            <div class="info-box">
-                <h3>Hold</h3>
-                <div class="hold-piece">
-                    <canvas id="holdCanvas" width="80" height="80"></canvas>
-                </div>
-            </div>
+    <div class="game-wrapper">
+        <!-- 左侧：状态信息 -->
+        <div class="left-panel">
             <div class="info-box">
                 <h3>Score</h3>
                 <div class="value" id="score">0</div>
@@ -102,14 +103,31 @@
             </div>
             <div class="info-box">
                 <h3>Status</h3>
-                <div class="value" id="status" style="font-size: 14px; color: #888;">-</div>
+                <div class="value" id="status" style="font-size: 12px; color: #888;">-</div>
             </div>
         </div>
-        
-        <div>
+
+        <!-- 中间：游戏画面 -->
+        <div class="center-panel">
             <canvas id="gameCanvas" width="300" height="600"></canvas>
             <div class="controls">
-                ←→ Move | ↑ Rotate | ↓ Soft Drop | Space Hard Drop | C Hold
+                ←→ Move | ↑/X Rotate | Z CCW | ↓ Soft | Space Hard | C Hold
+            </div>
+        </div>
+
+        <!-- 右侧：Next 和 Hold -->
+        <div class="right-panel">
+            <div class="info-box">
+                <h3>Next</h3>
+                <div class="preview-box">
+                    <canvas id="nextCanvas" width="80" height="80"></canvas>
+                </div>
+            </div>
+            <div class="info-box">
+                <h3>Hold</h3>
+                <div class="preview-box">
+                    <canvas id="holdCanvas" width="80" height="80"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -127,7 +145,6 @@
         const TETROMINOES = {
             I: {
                 color: '#00f0f0',
-                // 旋转状态: 0, R, 2, L
                 states: [
                     [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],  // 0
                     [[0,0,1,0], [0,0,1,0], [0,0,1,0], [0,0,1,0]],  // R
@@ -138,16 +155,13 @@
             O: {
                 color: '#f0f000',
                 states: [
-                    [[1,1], [1,1]],  // 0
-                    [[1,1], [1,1]],  // R (same)
-                    [[1,1], [1,1]],  // 2 (same)
-                    [[1,1], [1,1]]   // L (same)
+                    [[1,1], [1,1]], [[1,1], [1,1]], [[1,1], [1,1]], [[1,1], [1,1]]
                 ]
             },
             T: {
                 color: '#a000f0',
                 states: [
-                    [[0,1,0], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side up
+                    [[0,1,0], [1,1,1], [0,0,0]],  // 0 (spawn)
                     [[0,1,0], [0,1,1], [0,1,0]],  // R
                     [[0,0,0], [1,1,1], [0,1,0]],  // 2
                     [[0,1,0], [1,1,0], [0,1,0]]   // L
@@ -156,7 +170,7 @@
             S: {
                 color: '#00f000',
                 states: [
-                    [[0,1,1], [1,1,0], [0,0,0]],  // 0 (spawn) - horizontal
+                    [[0,1,1], [1,1,0], [0,0,0]],  // 0
                     [[0,1,0], [0,1,1], [0,0,1]],  // R
                     [[0,0,0], [0,1,1], [1,1,0]],  // 2
                     [[1,0,0], [1,1,0], [0,1,0]]   // L
@@ -165,7 +179,7 @@
             Z: {
                 color: '#f00000',
                 states: [
-                    [[1,1,0], [0,1,1], [0,0,0]],  // 0 (spawn) - horizontal
+                    [[1,1,0], [0,1,1], [0,0,0]],  // 0
                     [[0,0,1], [0,1,1], [0,1,0]],  // R
                     [[0,0,0], [1,1,0], [0,1,1]],  // 2
                     [[0,1,0], [1,1,0], [1,0,0]]   // L
@@ -174,7 +188,7 @@
             J: {
                 color: '#0000f0',
                 states: [
-                    [[1,0,0], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side left
+                    [[1,0,0], [1,1,1], [0,0,0]],  // 0
                     [[0,1,0], [0,1,0], [1,1,0]],  // R
                     [[0,0,0], [1,1,1], [0,0,1]],  // 2
                     [[0,1,1], [0,1,0], [0,1,0]]   // L
@@ -183,7 +197,7 @@
             L: {
                 color: '#f0a000',
                 states: [
-                    [[0,0,1], [1,1,1], [0,0,0]],  // 0 (spawn) - flat side left
+                    [[0,0,1], [1,1,1], [0,0,0]],  // 0
                     [[1,1,0], [0,1,0], [0,1,0]],  // R
                     [[0,0,0], [1,1,1], [1,0,0]],  // 2
                     [[0,1,0], [0,1,0], [0,1,1]]   // L
@@ -192,8 +206,6 @@
         };
 
         // ==================== SRS Wall Kick 表 ====================
-        
-        // J, L, S, T, Z 通用 Kick 表
         const KICK_JLSTZ = {
             0: { R: [[0,0], [-1,0], [-1,+1], [0,-2], [-1,-2]], L: [[0,0], [+1,0], [+1,+1], [0,-2], [+1,-2]] },
             R: { 0: [[0,0], [+1,0], [+1,-1], [0,+2], [+1,+2]], '2': [[0,0], [+1,0], [+1,-1], [0,+2], [+1,+2]] },
@@ -201,7 +213,6 @@
             L: { '2': [[0,0], [-1,0], [-1,-1], [0,+2], [-1,+2]], 0: [[0,0], [-1,0], [-1,-1], [0,+2], [-1,+2]] }
         };
         
-        // I 方块 Kick 表
         const KICK_I = {
             0: { R: [[0,0], [-2,0], [+1,0], [-2,-1], [+1,+2]], L: [[0,0], [-1,0], [+2,0], [-1,+2], [+2,-1]] },
             R: { 0: [[0,0], [+2,0], [-1,0], [+2,+1], [-1,-2]], '2': [[0,0], [-1,0], [+2,0], [-1,+2], [+2,-1]] },
@@ -230,16 +241,12 @@
         let dropCounter = 0;
         let dropInterval = 1000;
         
-        // T-Spin 追踪
         let tSpinPerformed = false;
         let tSpinValid = false;
-        
-        // Back-to-back 和 Combo
         let backToBack = false;
         let combo = 0;
         let lastWasHighScore = false;
         
-        // 7-bag 块序
         let bag = [];
         
         function refillBag() {
@@ -251,9 +258,7 @@
         }
         
         function getNextFromBag() {
-            if (bag.length === 0) {
-                refillBag();
-            }
+            if (bag.length === 0) refillBag();
             return bag.pop();
         }
 
@@ -261,52 +266,34 @@
         class Piece {
             constructor(type, x = null, y = 0) {
                 this.type = type;
-                this.state = 0;  // 0, R, 2, L
+                this.state = 0;
                 this.matrix = this.deepCopy(TETROMINOES[type].states[0]);
                 this.color = TETROMINOES[type].color;
                 
-                // 根据类型设置生成位置
+                // 生成位置修正：确保在棋盘内
                 if (x !== null) {
                     this.x = x;
                 } else {
-                    // SRS 生成位置：I/O居中，其他偏左
-                    if (type === 'I') {
-                        this.x = -1;  // I 在生成时稍微偏左
-                    } else if (type === 'O') {
-                        this.x = 4;   // O 居中
-                    } else {
-                        this.x = -1;  // 其他偏左
-                    }
+                    if (type === 'I') this.x = 3;       // I 居中
+                    else if (type === 'O') this.x = 4;  // O 居中
+                    else this.x = 3;                    // 其他居中
                 }
                 this.y = y;
             }
 
-            deepCopy(matrix) {
-                return matrix.map(row => [...row]);
-            }
+            deepCopy(matrix) { return matrix.map(row => [...row]); }
 
-            // 旋转：尝试5次 wall kick
             rotate(dir) {
-                if (this.type === 'O') return false;  // O 不旋转
+                if (this.type === 'O') return false;
                 
-                // 计算目标状态
                 const stateKeys = [0, 'R', 2, 'L'];
-                const currentStateIdx = ROTATION_STATE[this.state];
-                let nextStateIdx = (currentStateIdx + (dir > 0 ? 1 : 3)) % 4;
-                const nextState = stateKeys[nextStateIdx];
+                const nextState = stateKeys[(ROTATION_STATE[this.state] + (dir > 0 ? 1 : 3)) % 4];
                 
-                // 获取 kick 表
                 const kickTable = this.type === 'I' ? KICK_I : KICK_JLSTZ;
                 const kicks = kickTable[this.state][nextState];
+                const newMatrix = this.deepCopy(TETROMINOES[this.type].states[ROTATION_STATE[nextState]]);
                 
-                // 获取目标状态的矩阵
-                const newMatrix = this.deepCopy(TETROMINOES[this.type].states[nextStateIdx]);
-                
-                // 尝试5次 kick
-                for (let i = 0; i < kicks.length; i++) {
-                    const [dx, dy] = kicks[i];
-                    
-                    // 临时设置新矩阵和新位置来测试
+                for (const [dx, dy] of kicks) {
                     const oldMatrix = this.matrix;
                     const oldX = this.x;
                     const oldY = this.y;
@@ -320,12 +307,10 @@
                         return true;
                     }
                     
-                    // 失败，恢复
                     this.matrix = oldMatrix;
                     this.x = oldX;
                     this.y = oldY;
                 }
-                
                 return false;
             }
 
@@ -335,12 +320,8 @@
                         if (this.matrix[y][x]) {
                             const newX = this.x + x + offsetX;
                             const newY = this.y + y + offsetY;
-                            if (newX < 0 || newX >= COLS || newY >= ROWS) {
-                                return false;
-                            }
-                            if (newY >= 0 && board[newY][newX]) {
-                                return false;
-                            }
+                            if (newX < 0 || newX >= COLS || newY >= ROWS) return false;
+                            if (newY >= 0 && board[newY][newX]) return false;
                         }
                     }
                 }
@@ -348,11 +329,7 @@
             }
 
             move(dx, dy) {
-                if (this.isValid(dx, dy)) {
-                    this.x += dx;
-                    this.y += dy;
-                    return true;
-                }
+                if (this.isValid(dx, dy)) { this.x += dx; this.y += dy; return true; }
                 return false;
             }
 
@@ -362,18 +339,12 @@
 
             getGhostY() {
                 let ghostY = this.y;
-                while (this.isValid(0, ghostY - this.y + 1)) {
-                    ghostY++;
-                }
+                while (this.isValid(0, ghostY - this.y + 1)) ghostY++;
                 return ghostY;
             }
             
-            // 获取 T 方块的中心点
-            getTCenter() {
-                return { x: this.x + 1, y: this.y + 1 };
-            }
+            getTCenter() { return { x: this.x + 1, y: this.y + 1 }; }
             
-            // 检查 T 周围角
             checkTCorners() {
                 const center = this.getTCenter();
                 const corners = [
@@ -382,15 +353,11 @@
                     { x: center.x - 1, y: center.y + 1 },
                     { x: center.x + 1, y: center.y + 1 }
                 ];
-                
-                let blockedCorners = 0;
-                for (const corner of corners) {
-                    if (corner.x < 0 || corner.x >= COLS || corner.y >= ROWS || 
-                        (corner.y >= 0 && board[corner.y][corner.x])) {
-                        blockedCorners++;
-                    }
+                let blocked = 0;
+                for (const c of corners) {
+                    if (c.x < 0 || c.x >= COLS || c.y >= ROWS || (c.y >= 0 && board[c.y][c.x])) blocked++;
                 }
-                return blockedCorners >= 3;
+                return blocked >= 3;
             }
         }
 
@@ -398,17 +365,11 @@
         function initBoard() {
             board = [];
             for (let y = 0; y < ROWS; y++) {
-                board[y] = [];
-                for (let x = 0; x < COLS; x++) {
-                    board[y][x] = 0;
-                }
+                board[y] = Array(COLS).fill(0);
             }
         }
 
-        function getRandomPiece() {
-            const type = getNextFromBag();
-            return new Piece(type);
-        }
+        function getRandomPiece() { return new Piece(getNextFromBag()); }
 
         function spawnPiece() {
             currentPiece = nextPiece || getRandomPiece();
@@ -428,11 +389,9 @@
             for (let y = 0; y < currentPiece.matrix.length; y++) {
                 for (let x = 0; x < currentPiece.matrix[y].length; x++) {
                     if (currentPiece.matrix[y][x]) {
-                        const boardY = currentPiece.y + y;
-                        const boardX = currentPiece.x + x;
-                        if (boardY >= 0) {
-                            board[boardY][boardX] = currentPiece.color;
-                        }
+                        const by = currentPiece.y + y;
+                        const bx = currentPiece.x + x;
+                        if (by >= 0) board[by][bx] = currentPiece.color;
                     }
                 }
             }
@@ -445,17 +404,9 @@
             let clearedLines = 0;
             
             for (let y = ROWS - 1; y >= 0; y--) {
-                let full = true;
-                for (let x = 0; x < COLS; x++) {
-                    if (!board[y][x]) {
-                        full = false;
-                        break;
-                    }
-                }
-                
-                if (full) {
+                if (board[y].every(cell => cell !== 0)) {
                     board.splice(y, 1);
-                    board.unshift(new Array(COLS).fill(0));
+                    board.unshift(Array(COLS).fill(0));
                     clearedLines++;
                     y++;
                 }
@@ -465,43 +416,25 @@
                 const baseScores = [0, 100, 300, 500, 800];
                 let baseScore = baseScores[clearedLines] || 0;
                 
-                // T-Spin
                 let isTS = tSpinValid;
-                let tSpinScores = [0, 400, 800, 1200];
                 if (isTS && clearedLines <= 3) {
-                    baseScore = tSpinScores[clearedLines] || baseScore;
+                    baseScore = [0, 400, 800, 1200][clearedLines] || baseScore;
                 }
                 
-                if (combo > 0) {
-                    baseScore += combo * 50;
-                }
+                if (combo > 0) baseScore += combo * 50;
                 
-                // B2B
                 let isHighScore = (clearedLines === 4) || isTS;
                 let isB2B = isHighScore && lastWasHighScore;
-                if (isB2B) {
-                    baseScore = Math.floor(baseScore * 1.5);
-                    backToBack = true;
-                } else {
-                    backToBack = false;
-                }
+                if (isB2B) { baseScore = Math.floor(baseScore * 1.5); backToBack = true; }
+                else backToBack = false;
                 
                 score += baseScore * level;
                 lines += clearedLines;
-                
-                if (clearedLines > 0) {
-                    combo = backToBack ? combo + 1 : (combo > 0 ? combo + 1 : 1);
-                } else {
-                    combo = 0;
-                }
-                
+                combo = (clearedLines > 0) ? (backToBack ? combo + 1 : (combo > 0 ? combo + 1 : 1)) : 0;
                 lastWasHighScore = isHighScore;
                 
-                const newLevel = Math.floor(lines / 10) + 1;
-                if (newLevel > level) {
-                    level = newLevel;
-                    dropInterval = Math.max(100, 1000 - (level - 1) * 100);
-                }
+                level = Math.floor(lines / 10) + 1;
+                dropInterval = Math.max(100, 1000 - (level - 1) * 100);
 
                 updateUI();
                 tSpinPerformed = false;
@@ -518,23 +451,18 @@
             document.getElementById('combo').textContent = combo;
             
             const statusEl = document.getElementById('status');
-            if (backToBack) {
-                statusEl.textContent = 'B2B!';
-                statusEl.style.color = '#f0a000';
-            } else {
-                statusEl.textContent = '-';
-                statusEl.style.color = '#888';
-            }
+            if (backToBack) { statusEl.textContent = 'B2B!'; statusEl.style.color = '#f0a000'; }
+            else { statusEl.textContent = '-'; statusEl.style.color = '#888'; }
         }
 
-        function drawBlock(context, x, y, color, size = BLOCK_SIZE) {
-            context.fillStyle = color;
-            context.fillRect(x * size, y * size, size, size);
-            context.strokeStyle = 'rgba(255,255,255,0.3)';
-            context.lineWidth = 2;
-            context.strokeRect(x * size + 1, y * size + 1, size - 2, size - 2);
-            context.fillStyle = 'rgba(255,255,255,0.2)';
-            context.fillRect(x * size + 2, y * size + 2, size - 4, 4);
+        function drawBlock(ctx, x, y, color, size = BLOCK_SIZE) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * size, y * size, size, size);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x * size + 1, y * size + 1, size - 2, size - 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.fillRect(x * size + 2, y * size + 2, size - 4, 4);
         }
 
         function draw() {
@@ -543,9 +471,7 @@
 
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
-                    if (board[y][x]) {
-                        drawBlock(ctx, x, y, board[y][x]);
-                    }
+                    if (board[y][x]) drawBlock(ctx, x, y, board[y][x]);
                 }
             }
 
@@ -584,7 +510,7 @@
             }
         }
 
-        function drawPiece(canvas, ctx, piece, size = 20) {
+        function drawPieceOnCanvas(canvas, ctx, piece, size = 20) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!piece) return;
             
@@ -601,25 +527,23 @@
         }
 
         function drawNextPiece() {
-            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-            if (!nextPiece) return;
-            
-            // 创建显示用的 piece，使用状态0，居中显示
-            const displayPiece = new Piece(nextPiece.type, 0, 0);
-            // 重置为居中位置用于显示
-            displayPiece.x = 0;
-            displayPiece.y = 0;
-            drawPiece(nextCanvas, nextCtx, displayPiece);
+            if (nextPiece) {
+                const p = new Piece(nextPiece.type);
+                p.state = 0;
+                p.matrix = TETROMINOES[nextPiece.type].states[0];
+                drawPieceOnCanvas(nextCanvas, nextCtx, p);
+            }
         }
 
         function drawHoldPiece() {
-            holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-            if (!holdPiece) return;
-            
-            const displayPiece = new Piece(holdPiece.type, 0, 0);
-            displayPiece.x = 0;
-            displayPiece.y = 0;
-            drawPiece(holdCanvas, holdCtx, displayPiece);
+            if (holdPiece) {
+                const p = new Piece(holdPiece.type);
+                p.state = 0;
+                p.matrix = TETROMINOES[holdPiece.type].states[0];
+                drawPieceOnCanvas(holdCanvas, holdCtx, p);
+            } else {
+                holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+            }
         }
 
         function holdCurrentPiece() {
@@ -639,10 +563,7 @@
         }
 
         function update(time = 0) {
-            if (gameOver) {
-                draw();
-                return;
-            }
+            if (gameOver) { draw(); return; }
 
             const deltaTime = time - lastTime;
             lastTime = time;
@@ -650,9 +571,7 @@
             dropCounter += deltaTime;
             if (dropCounter > dropInterval) {
                 if (currentPiece) {
-                    if (!currentPiece.move(0, 1)) {
-                        lockPiece();
-                    }
+                    if (!currentPiece.move(0, 1)) lockPiece();
                 }
                 dropCounter = 0;
             }
@@ -663,22 +582,21 @@
 
         // ==================== 输入处理 ====================
         document.addEventListener('keydown', event => {
+            // 阻止空格等键的默认行为（页面滚动等）
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Space'].includes(event.key)) {
+                event.preventDefault();
+            }
+            
             if (gameOver) {
                 if (event.key === 'Enter') {
                     initBoard();
-                    score = 0;
-                    level = 1;
-                    lines = 0;
+                    score = 0; level = 1; lines = 0;
                     dropInterval = 1000;
                     gameOver = false;
-                    holdPiece = null;
-                    canHold = true;
-                    combo = 0;
-                    backToBack = false;
-                    tSpinPerformed = false;
-                    tSpinValid = false;
-                    bag = [];
-                    lastWasHighScore = false;
+                    holdPiece = null; canHold = true;
+                    combo = 0; backToBack = false;
+                    tSpinPerformed = false; tSpinValid = false;
+                    bag = []; lastWasHighScore = false;
                     updateUI();
                     spawnPiece();
                     update();
@@ -689,44 +607,26 @@
             if (!currentPiece) return;
 
             switch (event.key) {
-                case 'ArrowLeft':
-                    currentPiece.move(-1, 0);
+                case 'ArrowLeft': currentPiece.move(-1, 0); break;
+                case 'ArrowRight': currentPiece.move(1, 0); break;
+                case 'ArrowDown': currentPiece.move(0, 1); dropCounter = 0; break;
+                case 'ArrowUp': case 'x': case 'X':
+                    if (currentPiece.rotate(1)) tSpinPerformed = true;
                     break;
-                case 'ArrowRight':
-                    currentPiece.move(1, 0);
+                case 'z': case 'Z':
+                    if (currentPiece.rotate(-1)) tSpinPerformed = true;
                     break;
-                case 'ArrowDown':
-                    currentPiece.move(0, 1);
-                    dropCounter = 0;
-                    break;
-                case 'ArrowUp':
-                case 'x':
-                case 'X':
-                    if (currentPiece.rotate(1)) {
-                        tSpinPerformed = true;
-                    }
-                    break;
-                case 'z':
-                case 'Z':
-                    if (currentPiece.rotate(-1)) {
-                        tSpinPerformed = true;
-                    }
-                    break;
-                case ' ':
+                case ' ': // Space - 硬drop
                     currentPiece.hardDrop();
                     lockPiece();
                     dropCounter = 0;
                     break;
-                case 'c':
-                case 'C':
-                case 'Shift':
-                    holdCurrentPiece();
-                    break;
+                case 'c': case 'C': case 'Shift': holdCurrentPiece(); break;
             }
             draw();
         });
 
-        // ==================== 启动游戏 ====================
+        // ==================== 启动 ====================
         initBoard();
         spawnPiece();
         update();
